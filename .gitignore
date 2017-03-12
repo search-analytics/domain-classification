@@ -1,0 +1,6 @@
+20_newsgroup/*
+data/*
+archive/*
+fastText/*
+geckodriver.log
+logs.txt
