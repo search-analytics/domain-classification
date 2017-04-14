@@ -23,14 +23,21 @@ from selenium.webdriver.support.ui import Select
 import os
 import time
 
+cs_labels = ["Computer Science, Software Engineering", "Computer Science, Cybernetics", "Computer Science, Hardware & Architecture", 
+"Computer Science, Information Systems", "Computer Science, Theory & Methods", "Computer Science, Artificial Intelligence", 
+"Computer Science, Interdisciplinary Applications"]
+
 wos_cats = []
 
-with open("WoS-categories", "r") as cats:
+with open(os.path.join("categories", "WoS-categories"), "r") as cats:
     for x in cats.readlines():
-        wos_cats.append(x)    
+        if x.replace("\n","") in cs_labels: 
+            wos_cats.append(x)    
 
-    # url = "http://apps.webofknowledge.com"
-    url = "https://apps.webofknowledge.com/WOS_AdvancedSearch_input.do?SID=3BQC4NovjWrLT3HqyEl&product=WOS&search_mode=AdvancedSearch"
+    #************************************************************************************
+    #IMPORTANT: Must update this URL if running the script for first time in awhile
+    #************************************************************************************
+    url = "http://apps.webofknowledge.com/WOS_AdvancedSearch_input.do?SID=2DTDPX6n7D51h8m4kEH&product=WOS&search_mode=AdvancedSearch"
     delay = 5 # seconds
     downloads_dir = os.path.join(os.getcwd(), 'data')
     log_file = open('logs.txt', 'wb', 1)
@@ -61,7 +68,7 @@ with open("WoS-categories", "r") as cats:
 
     driver.find_element_by_xpath('//*[@title="Advanced Search"]').click()
 
-for idx, cat in enumerate(wos_cats[136:]):
+for idx, cat in enumerate(wos_cats):
 
     query = "WC=" + str(cat)
 
@@ -92,11 +99,20 @@ for idx, cat in enumerate(wos_cats[136:]):
     # In[13]:
 
     delay = 5
-    page_limit = 5
+    page_limit = 30
+    start_page = 29
     page = 0
 
+
     has_next = True
-    while page < page_limit:
+    while page < start_page + page_limit:
+
+        while page <= start_page: 
+            next_click = driver.find_element_by_xpath("//*[@alt='Next Page']")
+            log("Going to next page", stdout=False)
+            next_click.click()
+            page += 1
+
         page += 1
 
         log("URL = %s " % driver.current_url, stdout=False)

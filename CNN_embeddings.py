@@ -4,12 +4,12 @@ Same as example script but this incorporates preliminary Web of Science data
 Data is available on Search Analytics machine: 
 
 Discussion around script available here: https://blog.keras.io/using-pre-trained-word-embeddings-in-a-keras-model.html
-Performance sucks after 2 epochs (~10% accuracy)
 '''
 
 from __future__ import print_function
 import os
 import numpy as np
+import json
 np.random.seed(1337)
 
 from keras.preprocessing.text import Tokenizer
@@ -18,37 +18,84 @@ from keras.utils.np_utils import to_categorical
 from keras.layers import Dense, Input, Flatten
 from keras.layers import Conv1D, MaxPooling1D, Embedding
 from keras.models import Model
+import keras
 import sys
+import argparse
+from gensim.models.word2vec import Word2Vec
+
+
+# python3 CNN_embeddings.py -a "single-category-abstracts.txt" -l "single-category-labels.txt"
+
+parser = argparse.ArgumentParser(description='Train classifier to identify domain from text')
+parser.add_argument('-a', '--abstracts', help='file containing abstracts for training/testing (one per line)', default="abstracts.txt")
+parser.add_argument('-l', '--labels', help='file containing labels for abstracts (one per line)', default="labels.txt")
+args = parser.parse_args()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-MAX_NB_WORDS = 20000
-MAX_SEQUENCE_LENGTH = 1000
+MAX_NB_WORDS = 40000
+MAX_SEQUENCE_LENGTH = 1500
 VALIDATION_SPLIT = .2
 EMBEDDING_DIM = 100
 
 texts = []
 labels = []
 labels_index = {}
-with open(os.path.join(basedir, "data", "abstracts.txt"), "r") as f:
-	texts = f.readlines()
+indices = [] #when only using samplefrom non-cs categories
 
-print('Found %s texts.' % len(texts))
+cs_labels = ["Computer Science, Software Engineering", "Computer Science, Cybernetics", "Computer Science, Hardware & Architecture", 
+"Computer Science, Information Systems", "Computer Science, Theory & Methods", "Computer Science, Artificial Intelligence", 
+"Computer Science, Interdisciplinary Applications"]
 
-with open(os.path.join(basedir, "data", "labels.txt"), "r") as f:
+
+########################################################
+# Only considering CS domains, all else is "other"
+########################################################
+
+with open(os.path.join(basedir, "data", args.labels), "r") as f:
 	word_labels = f.readlines()
-	for name in word_labels:
-		label_id = len(labels_index)
-		labels_index[name] = label_id
-		labels.append(label_id)
+	
+	other_samples = {}
 
-# print (texts[0:10])
-# print (len(labels))
-# print (labels_index)
+	labels_index["Other"] = 0 
+
+	for i, name in enumerate(word_labels):
+		if name.replace("\n","") in cs_labels:
+			
+			if not name in labels_index:
+				label_id = len(labels_index)
+				labels_index[name] = label_id
+			
+			labels.append(labels_index[name])
+			indices.append(i)
+
+		else:
+			if not name in other_samples or other_samples[name] < 10:
+
+				labels.append(0)
+				indices.append(i)
+
+				if name in other_samples:
+					other_samples[name] += 1
+				else:
+					other_samples[name] = 1
+
+with open(os.path.join(basedir, "data", args.abstracts), "r") as f:
+	all_texts = f.readlines()
+
+	for i, abstract in enumerate(all_texts):
+		if i in indices:
+			texts.append(abstract)
+
+print(json.dumps(labels_index, indent=4))
+print('Using %s texts.' % len(texts))
 
 tokenizer = Tokenizer(nb_words=MAX_NB_WORDS)
 tokenizer.fit_on_texts(texts)
 sequences = tokenizer.texts_to_sequences(texts)
+
+print (len(sequences))
+print (sequences[0:2])
 
 word_index = tokenizer.word_index
 print('Found %s unique tokens.' % len(word_index))
@@ -110,7 +157,7 @@ x = Conv1D(128, 5, activation='relu')(x)
 x = MaxPooling1D(35)(x)
 x = Flatten()(x)
 x = Dense(128, activation='relu')(x)
-preds = Dense(len(labels_index) + 1, activation='softmax')(x)
+preds = Dense(len(labels_index), activation='softmax')(x)
 
 model = Model(sequence_input, preds)
 model.compile(loss='categorical_crossentropy',
@@ -122,65 +169,8 @@ print (y_train.shape)
 print (x_val.shape)
 print (y_val.shape)
 
+# tensorboard --logdir=/Users/hundman/documents/data_science/search-analytics/domain-classification/logs
+tbCallBack = keras.callbacks.TensorBoard(log_dir='./logs', histogram_freq=1, write_graph=True, write_images=True)
+
 # happy learning!
-model.fit(x_train, y_train, validation_data=(x_val, y_val), nb_epoch=2, batch_size=128)
-
-
-# Orig
-# ==================================================================================
-
-# batch_size = 32
-# nb_epoch = 2
-# max_words = 1000 #in each doc
-
-# print('Loading data...')
-# (X_train, y_train), (X_test, y_test) = reuters.load_data(nb_words=max_words, test_split=0.2)
-# print(len(X_train), 'train sequences')
-# print(len(X_test), 'test sequences')
-
-# print (y_test[:10])
-# print (y_train[:10])
-
-# nb_classes = np.max(y_train) + 1
-# print(nb_classes, 'classes')
-
-# print('Vectorizing sequence data...')
-# tokenizer = Tokenizer(nb_words=max_words)
-# X_train = tokenizer.sequences_to_matrix(X_train, mode='binary')
-# X_test = tokenizer.sequences_to_matrix(X_test, mode='binary')
-# print('X_train shape:', X_train.shape)
-# print('X_test shape:', X_test.shape)
-
-# print('Convert class vector to binary class matrix (for use with categorical_crossentropy)')
-# Y_train = np_utils.to_categorical(y_train, nb_classes)
-# Y_test = np_utils.to_categorical(y_test, nb_classes)
-# print('Y_train shape:', Y_train.shape)
-# print('Y_test shape:', Y_test.shape)
-
-# print('Building model...')
-# model = Sequential()
-# model.add(Dense(512, input_shape=(max_words,)))
-# model.add(Activation('relu'))
-# model.add(Dropout(0.5))
-# model.add(Dense(nb_classes))
-# model.add(Activation('softmax'))
-
-# model.compile(loss='categorical_crossentropy',
-#               optimizer='adam',
-#               metrics=['accuracy'])
-
-# history = model.fit(X_train, Y_train,
-#                     nb_epoch=nb_epoch, batch_size=batch_size,
-#                     verbose=1, validation_split=0.1)
-
-# # score = model.evaluate(X_test, Y_test,
-# #                        batch_size=batch_size, verbose=1)
-
-# prediction = model.predict(X_test, batch_size=batch_size, verbose=1)
-
-# print (len(X_test[0]))
-# print (prediction[0])
-
-
-# print('Test score:', score[0])
-# print('Test accuracy:', score[1])
+history = model.fit(x_train, y_train, validation_data=(x_val, y_val), nb_epoch=25, batch_size=128, callbacks=[tbCallBack])
