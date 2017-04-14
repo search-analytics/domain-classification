@@ -31,3 +31,4 @@ The NTIS data is also labeled with similar categories and can be used in trainin
 ## Keywords
 
 Both Web of Science and NTIS have keywords available for abstracts that can be used to tag abstracts without keywords available. Relationships between these keywords can then be used to do more granular characterization of abstracts beyond the classification categories. Current plan is to combine keywords lists from CS-related abstracts from NTIS and WoS data. 
+	* Will need to use something like TFIDF to get rid of common keywords like “research”, “evaluation”, “application”, “science”, “methods", etc.
